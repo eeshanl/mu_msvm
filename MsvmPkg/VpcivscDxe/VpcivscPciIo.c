@@ -10,6 +10,7 @@
 #include <Library/BaseMemoryLib.h>
 #include <Library/DebugLib.h>
 #include <Library/IoLib.h>
+#include <Library/IoMmuLib.h>
 #include <Library/MemoryAllocationLib.h>
 
 #include <IndustryStandard/Pci.h>
@@ -581,10 +582,25 @@ VpcivscPciIoMap(
     OUT     VOID                           **Mapping
     )
 {
-    // For VPCI, the VSC has DMA access to all pages. So nothing to do here,
-    // just return the address of the buffer.
+    if (IoMmuIsPresent ()) {
+        //
+        // Isolated VM: delegate to the IOMMU protocol for bounce buffering.
+        // EFI_PCI_IO_PROTOCOL_OPERATION maps directly to EDKII_IOMMU_OPERATION.
+        //
+        return IoMmuMap (
+                   (EDKII_IOMMU_OPERATION)Operation,
+                   HostAddress,
+                   NumberOfBytes,
+                   DeviceAddress,
+                   Mapping
+                   );
+    }
 
-    *DeviceAddress = (UINTN) HostAddress;
+    //
+    // Non-isolated VM: the VSC has DMA access to all pages.
+    // Just return the address of the buffer.
+    //
+    *DeviceAddress = (UINTN)HostAddress;
     *Mapping = NULL;
 
     return EFI_SUCCESS;
@@ -606,9 +622,11 @@ VpcivscPciIoUnmap(
     IN  VOID                 *Mapping
     )
 {
-    // DEBUG((DEBUG_VPCI_INFO, "VpcivscPciIoUnmap called with mapping %llx\n", Mapping));
+    if (IoMmuIsPresent ()) {
+        return IoMmuUnmap (Mapping);
+    }
 
-    ASSERT(Mapping == NULL);
+    ASSERT (Mapping == NULL);
 
     return EFI_SUCCESS;
 }
@@ -644,35 +662,36 @@ VpcivscPciIoAllocateBuffer(
     IN  UINT64                Attributes
     )
 {
-    VOID* buffer = NULL;
+    DEBUG ((DEBUG_VPCI_INFO, "VpcivscPciIoAllocateBuffer called with pages %x\n", Pages));
 
-    DEBUG((DEBUG_VPCI_INFO, "VpcivscPciIoAllocateBuffer called with pages %x\n", Pages));
+    if (IoMmuIsPresent ()) {
+        //
+        // Isolated VM: delegate to the IOMMU protocol which allocates
+        // host-visible memory and returns a shared VA.
+        //
+        return IoMmuAllocateBuffer (Type, MemoryType, Pages, HostAddress, Attributes);
+    }
 
-    // For VPCI, the VSC has DMA access to all pages. So nothing special here,
-    // just allocate memory like normal.
-
-    // NVMe dxe driver doesn't use attributes.
+    //
+    // Non-isolated VM: just allocate memory normally.
+    //
     if (Attributes != 0)
     {
-        ASSERT(FALSE);
+        ASSERT (FALSE);
         return EFI_UNSUPPORTED;
     }
 
     if (MemoryType != EfiBootServicesData)
     {
-        ASSERT(FALSE);
+        ASSERT (FALSE);
         return EFI_UNSUPPORTED;
     }
 
-    buffer = AllocatePages(Pages);
-
-    if (buffer == NULL)
+    *HostAddress = AllocatePages (Pages);
+    if (*HostAddress == NULL)
     {
         return EFI_OUT_OF_RESOURCES;
     }
-
-    // The host address is just the buffer address. No special mapping.
-    *HostAddress = buffer;
 
     return EFI_SUCCESS;
 }
@@ -685,14 +704,22 @@ VpcivscPciIoFreeBuffer(
     IN  VOID                  *HostAddress
     )
 {
-    DEBUG((DEBUG_VPCI_INFO, "VpcivscPciIoFreeBuffer called with addr %llx pages %x\n", HostAddress, Pages));
+    DEBUG ((DEBUG_VPCI_INFO, "VpcivscPciIoFreeBuffer called with addr %llx pages %x\n", HostAddress, Pages));
 
-    // Free the buffer allocated with AllocatePages
+    if (IoMmuIsPresent ()) {
+        //
+        // Isolated VM: delegate to the IOMMU protocol which revokes
+        // host visibility. Pages are intentionally leaked (ND2 workaround).
+        //
+        return IoMmuFreeBuffer (Pages, HostAddress);
+    }
+
+    //
+    // Non-isolated VM: intentionally leak pages to work around a bug
+    // with ND2 on the host registering write notifications for pages,
+    // resulting in the VM hanging. Pages are reclaimed at ExitBootServices.
+    //
     // FreePages(HostAddress, Pages);
-    // NOTE: To workaround a bug with ND2 on the host registering write
-    // notifications for pages resulting in the VM hanging, do not put
-    // pages used for NVMe queues back onto the free list. Instead,
-    // leak these pages as they will be reclaimed later at ExitBootServices.
 
     return EFI_SUCCESS;
 }

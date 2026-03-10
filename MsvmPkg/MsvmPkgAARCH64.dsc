@@ -233,6 +233,7 @@
   DxeServicesLib|MdePkg/Library/DxeServicesLib/DxeServicesLib.inf
   DxeServicesTableLib|MdePkg/Library/DxeServicesTableLib/DxeServicesTableLib.inf
   EventLogLib|MsvmPkg/Library/EventLogLib/EventLogLib.inf
+  IoMmuLib|MdeModulePkg/Library/IoMmuLib/IoMmuLib.inf
   ExtractGuidedSectionLib|MdePkg/Library/DxeExtractGuidedSectionLib/DxeExtractGuidedSectionLib.inf
   FileExplorerLib|MdeModulePkg/Library/FileExplorerLib/FileExplorerLib.inf
   FrameBufferMemDrawLib|MsGraphicsPkg/Library/FrameBufferMemDrawLib/FrameBufferMemDrawLibDxe.inf
@@ -845,6 +846,7 @@
   MsvmPkg/EfiHvDxe/EfiHvDxe.inf
   MsvmPkg/EmclDxe/EmclDxe.inf
   MsvmPkg/EventLogDxe/EventLogDxe.inf
+  MsvmPkg/IoMmuDxe/IoMmuDxe.inf
     MsvmPkg/MsvmPcAtRealTimeClockRuntimeDxe/PcatRealTimeClockRuntimeDxe.inf
   MsvmPkg/NetvscDxe/NetvscDxe.inf
   MsvmPkg/NvmExpressDxe/NvmExpressDxe.inf

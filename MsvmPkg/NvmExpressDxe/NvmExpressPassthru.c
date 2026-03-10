@@ -202,11 +202,9 @@ NvmeDumpStatus (
   @param[in]     PciIo               A pointer to the EFI_PCI_IO_PROTOCOL instance.
   @param[in]     PhysicalAddr        The physical base address of data buffer.
   @param[in]     Pages               The number of pages to be transfered.
-  @param[in]     BouncePageListHead  A pointer to PNVME_BOUNCE_PAGE list.
   @param[out]    PrpListHost         The host base address of PRP lists.
   @param[in,out] PrpListNo           The number of PRP List.
   @param[out]    Mapping             The mapping value returned from PciIo.Map().
-  @param[out]    ProtectionHandle    Object used to track memory range.
 
   @retval The pointer to the first PRP List of the PRP lists.
 
@@ -216,11 +214,9 @@ NvmeCreatePrpList (
   IN     EFI_PCI_IO_PROTOCOL   *PciIo,
   IN     EFI_PHYSICAL_ADDRESS  PhysicalAddr,
   IN     UINTN                 Pages,
-  IN     PNVME_BOUNCE_PAGE     BouncePageListHead,      // MS_HYP_CHANGE
   OUT VOID                     **PrpListHost,
   IN OUT UINTN                 *PrpListNo,
-  OUT VOID                     **Mapping,
-  IN OUT NVME_HOST_VISIBILITY_CONTEXT *HostVisibilityContext     // MS_HYP_CHANGE
+  OUT VOID                     **Mapping
   )
 {
   UINT64                PrpEntryNo; // MU_CHANGE - CodeQl Change - comparison mismatch
@@ -231,12 +227,6 @@ NvmeCreatePrpList (
   EFI_PHYSICAL_ADDRESS  PrpListPhyAddr;
   UINTN                 Bytes;
   EFI_STATUS            Status;
-  // MS_HYP_CHANGE BEGIN
-  PNVME_BOUNCE_PAGE     BouncePage;
-
-  ASSERT ((NvmExpressIsBounceActive() && (BouncePageListHead != NULL)) ||
-          (!NvmExpressIsBounceActive() && (BouncePageListHead == NULL)));
-  // MS_HYP_CHANGE END
 
   //
   // The number of Prp Entry in a memory page.
@@ -270,20 +260,6 @@ NvmeCreatePrpList (
     return NULL;
   }
 
-  // MS_HYP_CHANGE BEGIN
-  if (IsIsolated())
-  {
-    Status = NvmExpressMakeAddressRangeShared(HostVisibilityContext,
-                                              *PrpListHost,
-                                              (UINT32)*PrpListNo * EFI_PAGE_SIZE);
-
-    if (EFI_ERROR(Status))
-    {
-        goto EXIT;
-    }
-  }
-  // MS_HYP_CHANGE END
-
   Bytes  = EFI_PAGES_TO_SIZE (*PrpListNo);
   Status = PciIo->Map (
                     PciIo,
@@ -299,21 +275,9 @@ NvmeCreatePrpList (
     goto EXIT;
   }
 
-  // MS_HYP_CHANGE BEGIN
-  if (IsIsolated()) {
-    //
-    // Canonicalize  the VA.
-    //
-    *PrpListHost = NvmExpressGetSharedVa(*PrpListHost);
-  }
-  // MS_HYP_CHANGE END
-
   //
   // Fill all PRP lists except of last one.
   //
-
-  BouncePage = BouncePageListHead;      // MS_HYP_CHANGE
-
   ZeroMem (*PrpListHost, Bytes);
   for (PrpListIndex = 0; PrpListIndex < *PrpListNo - 1; ++PrpListIndex) {
     PrpListBase = *(UINT64 *)PrpListHost + PrpListIndex * EFI_PAGE_SIZE;
@@ -323,17 +287,8 @@ NvmeCreatePrpList (
         //
         // Fill all PRP entries except of last one.
         //
-        // MS_HYP_CHANGE BEGIN
-        if (BouncePageListHead != NULL) {
-          ASSERT (BouncePage != NULL);
-          *((UINT64 *)(UINTN)PrpListBase + PrpEntryIndex) = BouncePage->HostVisiblePA;
-          BouncePage = BouncePage->NextBouncePage;
-
-        } else {
-        // MS_HYP_CHANGE END
-          *((UINT64 *)(UINTN)PrpListBase + PrpEntryIndex) = PhysicalAddr;
-          PhysicalAddr                                   += EFI_PAGE_SIZE;
-        } // MS_HYP_CHANGE
+        *((UINT64 *)(UINTN)PrpListBase + PrpEntryIndex) = PhysicalAddr;
+        PhysicalAddr                                   += EFI_PAGE_SIZE;
       } else {
         //
         // Fill last PRP entries with next PRP List pointer.
@@ -348,18 +303,8 @@ NvmeCreatePrpList (
   //
   PrpListBase = *(UINT64 *)PrpListHost + PrpListIndex * EFI_PAGE_SIZE;
   for (PrpEntryIndex = 0; PrpEntryIndex < Remainder; ++PrpEntryIndex) {
-
-    // MS_HYP_CHANGE BEGIN
-    if (BouncePageListHead != NULL) {
-      ASSERT (BouncePage != NULL);
-      *((UINT64 *)(UINTN)PrpListBase + PrpEntryIndex) = BouncePage->HostVisiblePA;
-      BouncePage = BouncePage->NextBouncePage;
-
-    } else {
-    // MS_HYP_CHANGE END
-      *((UINT64 *)(UINTN)PrpListBase + PrpEntryIndex) = PhysicalAddr;
-      PhysicalAddr                                   += EFI_PAGE_SIZE;
-    } // MS_HYP_CHANGE
+    *((UINT64 *)(UINTN)PrpListBase + PrpEntryIndex) = PhysicalAddr;
+    PhysicalAddr                                   += EFI_PAGE_SIZE;
   }
 
   return (VOID *)(UINTN)PrpListPhyAddr;
@@ -431,18 +376,6 @@ AbortAsyncPassThruTasks (
     NextLink     = GetNextNode (&Private->AsyncPassThruQueue, Link);
     AsyncRequest = NVME_PASS_THRU_ASYNC_REQ_FROM_THIS (Link);
 
-    // MS_HYP_CHANGE BEGIN
-    if (AsyncRequest->TransferBouncePageList != NULL) {
-      NvmExpressReleaseBouncePages (Private,
-                                    AsyncRequest->TransferBouncePageList);
-    }
-
-    if (AsyncRequest->MetadataBouncePageList != NULL) {
-        NvmExpressReleaseBouncePages (Private,
-                                      AsyncRequest->MetadataBouncePageList);
-    }
-    // MS_HYP_CHANGE END
-
     if (AsyncRequest->MapData != NULL) {
       PciIo->Unmap (PciIo, AsyncRequest->MapData);
     }
@@ -456,13 +389,6 @@ AbortAsyncPassThruTasks (
     }
 
     if (AsyncRequest->PrpListHost != NULL) {
-
-      // MS_HYP_CHANGE BEGIN
-      if (IsIsolated()) {
-        NvmExpressMakeAddressRangePrivate(&AsyncRequest->PrpListHostVisibilityContext, AsyncRequest->PrpListHost);
-      }
-      // MS_HYP_CHANGE END
-
       PciIo->FreeBuffer (
                PciIo,
                AsyncRequest->PrpListNo,
@@ -555,12 +481,6 @@ NvmExpressPassThru (
   UINT32                         Data;
   NVME_PASS_THRU_ASYNC_REQ       *AsyncRequest;
   EFI_TPL                        OldTpl;
-  // MS_HYP_CHANGE BEGIN
-  UINT32                         BouncePageCount;
-  NVME_HOST_VISIBILITY_CONTEXT   PrpListVisibilityContext;
-  PNVME_BOUNCE_PAGE              TransferBouncePageList;
-  PNVME_BOUNCE_PAGE              MetadataBouncePageList;
-  // MS_HYP_CHANGE END
 
   //
   // check the data fields in Packet parameter.
@@ -633,10 +553,6 @@ NvmExpressPassThru (
   Prp         = NULL;
   TimerEvent  = NULL;
   Status      = EFI_SUCCESS;
-  // MS_HYP_CHANGE BEGIN
-  TransferBouncePageList = NULL;
-  MetadataBouncePageList = NULL;
-  // MS_HYP_CHANGE END
 
   // MU_CHANGE [BEGIN] - Support alternative hardware queue sizes in NVME driver
   if (PcdGetBool (PcdSupportAlternativeQueueSize)) {
@@ -645,7 +561,7 @@ NvmExpressPassThru (
     QueueSize = MIN (NVME_ASYNC_CSQ_SIZE, Private->Cap.Mqes) + 1;
   }
 
-  // MU_CHANGE [END]
+  // MU_CHANGE [END] - Support alternative hardware queue sizes in NVME driver
 
   if (Packet->QueueType == NVME_ADMIN_QUEUE) {
     QueueId = 0;
@@ -728,160 +644,67 @@ NvmExpressPassThru (
     }
 
     if ((Packet->TransferLength != 0) && (Packet->TransferBuffer != NULL)) {
-
-      // MS_HYP_CHANGE BEGIN
-      if (NvmExpressIsBounceActive()) {
-
-        //
-        // Use bounce buffer for isolated VMs.
-        //
-        Offset = (UINT16)((UINT64)Packet->TransferBuffer & (EFI_PAGE_SIZE - 1));
-        BouncePageCount = EFI_SIZE_TO_PAGES(Packet->TransferLength + Offset);
-        TransferBouncePageList = NvmExpressAcquireBouncePages (Private,
-                                                               BouncePageCount);
-        if (TransferBouncePageList == NULL) {
-          DEBUG ((DEBUG_ERROR, "%a: Transfer bounce buffer allocation error - %r!\n", __FUNCTION__, Status));
-          Status =  EFI_OUT_OF_RESOURCES;
-          goto EXIT;
-        }
-
-        if ((Sq->Opc & BIT0) != 0) {
-
-          //
-          // Data transfer direction from host to controller. Copy into bounce buffer.
-          //
-          NvmExpressCopyBouncePagesToExternalBuffer (Packet->TransferBuffer,
-                                                     Packet->TransferLength,
-                                                     TransferBouncePageList,
-                                                     TRUE);
-        } else {
-          NvmExpressZeroBouncePageList (TransferBouncePageList);
-        }
-        PhyAddr = TransferBouncePageList->HostVisiblePA + Offset;
-      }  else {
-      // MS_HYP_CHANGE END
-        MapLength = Packet->TransferLength;
-        Status    = PciIo->Map (
-                             PciIo,
-                             Flag,
-                             Packet->TransferBuffer,
-                             &MapLength,
-                             &PhyAddr,
-                             &MapData
-                             );
-        if (EFI_ERROR (Status) || (Packet->TransferLength != MapLength)) {
-          return EFI_OUT_OF_RESOURCES;
-        }
-
-      } // MS_HYP_CHANGE
+      MapLength = Packet->TransferLength;
+      Status    = PciIo->Map (
+                           PciIo,
+                           Flag,
+                           Packet->TransferBuffer,
+                           &MapLength,
+                           &PhyAddr,
+                           &MapData
+                           );
+      if (EFI_ERROR (Status) || (Packet->TransferLength != MapLength)) {
+        return EFI_OUT_OF_RESOURCES;
+      }
 
       Sq->Prp[0] = PhyAddr;
-
-      // MS_HYP_CHANGE this block is lifted from lower in the function to set Sq->Prp[1] correctly
-      //
-      // If the buffer size spans more than two memory pages (page size as defined in CC.Mps),
-      // then build a PRP list in the second PRP submission queue entry.
-      //
-      Offset = ((UINT16)Sq->Prp[0]) & (EFI_PAGE_SIZE - 1);
-      Bytes  = Packet->TransferLength;
-
-      if ((Offset + Bytes) > (EFI_PAGE_SIZE * 2)) {
-        //
-        // Create PrpList for remaining data buffer.
-        //
-        PhyAddr = (Sq->Prp[0] + EFI_PAGE_SIZE) & ~(EFI_PAGE_SIZE - 1);
-        Prp     = NvmeCreatePrpList (PciIo,
-                                     PhyAddr,
-                                     EFI_SIZE_TO_PAGES (Offset + Bytes) - 1,
-                                     // MS_HYP_CHANGE
-                                     ((TransferBouncePageList != NULL)?
-                                        TransferBouncePageList->NextBouncePage:NULL),
-                                     &PrpListHost,
-                                     &PrpListNo,
-                                     &MapPrpList,
-                                     &PrpListVisibilityContext);
-        if (Prp == NULL) {
-          Status = EFI_OUT_OF_RESOURCES;
-          goto EXIT;
-        }
-
-        Sq->Prp[1] = (UINT64)(UINTN)Prp;
-      } else if ((Offset + Bytes) > EFI_PAGE_SIZE) {
-
-        // MS_HYP_CHANGE BEGIN
-        if (TransferBouncePageList != NULL) {
-          //
-          // Next page in bounce buffer list
-          //
-          PNVME_BOUNCE_PAGE bouncePage;
-          bouncePage = TransferBouncePageList->NextBouncePage;
-          ASSERT (bouncePage != NULL);
-
-          Sq->Prp[1] = bouncePage->HostVisiblePA;
-        } else {
-        // MS_HYP_CHANGE END
-          Sq->Prp[1] = (Sq->Prp[0] + EFI_PAGE_SIZE) & ~(EFI_PAGE_SIZE - 1);
-        } // MS_HYP_CHANGE
-      }
+      Sq->Prp[1] = 0;
     }
 
     if ((Packet->MetadataLength != 0) && (Packet->MetadataBuffer != NULL)) {
-      // MS_HYP_CHANGE BEGIN
-      if (NvmExpressIsBounceActive()) {
+      MapLength = Packet->MetadataLength;
+      Status    = PciIo->Map (
+                           PciIo,
+                           Flag,
+                           Packet->MetadataBuffer,
+                           &MapLength,
+                           &PhyAddr,
+                           &MapMeta
+                           );
+      if (EFI_ERROR (Status) || (Packet->MetadataLength != MapLength)) {
+        PciIo->Unmap (
+                 PciIo,
+                 MapData
+                 );
 
-        //
-        // Use bounce buffer for isolated VMs.
-        //
-        Offset = (UINT16)((UINT64)Packet->MetadataBuffer & (EFI_PAGE_SIZE - 1));
-        BouncePageCount = EFI_SIZE_TO_PAGES(Packet->MetadataLength + Offset);
+        return EFI_OUT_OF_RESOURCES;
+      }
 
-        //
-        // Metadata buffer cannot span more than 1 page
-        //
-        ASSERT (BouncePageCount == 1);
-        MetadataBouncePageList = NvmExpressAcquireBouncePages (Private,
-                                                               BouncePageCount);
-        if (MetadataBouncePageList == NULL) {
-          DEBUG ((DEBUG_ERROR, "%a: Metadata bounce buffer allocation error - %r!\n", __FUNCTION__, Status));
-          Status =  EFI_OUT_OF_RESOURCES;
-          goto EXIT;
-        }
-        if ((Sq->Opc & BIT0) != 0) {
-
-          //
-          // Data transfer direction from host to controller. Copy
-          // into bounce buffer.
-          //
-          NvmExpressCopyBouncePagesToExternalBuffer (Packet->MetadataBuffer,
-                                                     Packet->MetadataLength,
-                                                     MetadataBouncePageList,
-                                                     TRUE);
-        } else {
-          NvmExpressZeroBouncePageList (MetadataBouncePageList);
-        }
-        PhyAddr = MetadataBouncePageList->HostVisiblePA + Offset;
-      } else {
-      // MS_HYP_CHANGE END
-        MapLength = Packet->MetadataLength;
-        Status    = PciIo->Map (
-                             PciIo,
-                             Flag,
-                             Packet->MetadataBuffer,
-                             &MapLength,
-                             &PhyAddr,
-                             &MapMeta
-                             );
-        if (EFI_ERROR (Status) || (Packet->MetadataLength != MapLength)) {
-          PciIo->Unmap (
-                   PciIo,
-                   MapData
-                   );
-
-          return EFI_OUT_OF_RESOURCES;
-        }
-      } // MS_HYP_CHANGE
       Sq->Mptr = PhyAddr;
     }
+  }
+
+  //
+  // If the buffer size spans more than two memory pages (page size as defined in CC.Mps),
+  // then build a PRP list in the second PRP submission queue entry.
+  //
+  Offset = ((UINT16)Sq->Prp[0]) & (EFI_PAGE_SIZE - 1);
+  Bytes  = Packet->TransferLength;
+
+  if ((Offset + Bytes) > (EFI_PAGE_SIZE * 2)) {
+    //
+    // Create PrpList for remaining data buffer.
+    //
+    PhyAddr = (Sq->Prp[0] + EFI_PAGE_SIZE) & ~(EFI_PAGE_SIZE - 1);
+    Prp     = NvmeCreatePrpList (PciIo, PhyAddr, EFI_SIZE_TO_PAGES (Offset + Bytes) - 1, &PrpListHost, &PrpListNo, &MapPrpList);
+    if (Prp == NULL) {
+      Status = EFI_OUT_OF_RESOURCES;
+      goto EXIT;
+    }
+
+    Sq->Prp[1] = (UINT64)(UINTN)Prp;
+  } else if ((Offset + Bytes) > EFI_PAGE_SIZE) {
+    Sq->Prp[1] = (Sq->Prp[0] + EFI_PAGE_SIZE) & ~(EFI_PAGE_SIZE - 1);
   }
 
   if (Packet->NvmeCmd->Flags & CDW2_VALID) {
@@ -931,7 +754,7 @@ NvmExpressPassThru (
     }
   }
 
-  // MU_CHANGE [END]
+  // MU_CHANGE [END] - Support alternative hardware queue sizes in NVME driver
 
   Data   = ReadUnaligned32 ((UINT32 *)&Private->SqTdbl[QueueId]);
   Status = PciIo->Mem.Write (
@@ -967,11 +790,6 @@ NvmExpressPassThru (
     AsyncRequest->MapPrpList  = MapPrpList;
     AsyncRequest->PrpListNo   = PrpListNo;
     AsyncRequest->PrpListHost = PrpListHost;
-    // MS_HYP_CHANGE BEGIN
-    AsyncRequest->PrpListHostVisibilityContext.RangeProtectionHandle = PrpListVisibilityContext.RangeProtectionHandle;
-    AsyncRequest->TransferBouncePageList = TransferBouncePageList;
-    AsyncRequest->MetadataBouncePageList = MetadataBouncePageList;
-    // MS_HYP_CHANGE END
 
     OldTpl = gBS->RaiseTPL (TPL_NOTIFY);
     InsertTailList (&Private->AsyncPassThruQueue, &AsyncRequest->Link);
@@ -1014,27 +832,6 @@ NvmExpressPassThru (
   if (Status != EFI_TIMEOUT) {
     if ((Cq->Sct == 0) && (Cq->Sc == 0)) {
       Status = EFI_SUCCESS;
-
-      // MS_HYP_CHANGE BEGIN
-      //
-      // Copy back data from the bounce buffers
-      //
-      if (Packet->NvmeCmd->Cdw0.Opcode & BIT1) {
-        if (TransferBouncePageList != NULL) {
-          NvmExpressCopyBouncePagesToExternalBuffer(Packet->TransferBuffer,
-                                                    Packet->TransferLength,
-                                                    TransferBouncePageList,
-                                                    FALSE);
-        }
-
-        if (MetadataBouncePageList != NULL) {
-          NvmExpressCopyBouncePagesToExternalBuffer(Packet->MetadataBuffer,
-                                                    Packet->MetadataLength,
-                                                    MetadataBouncePageList,
-                                                    FALSE);
-        }
-      }
-      // MS_HYP_CHANGE END
     } else {
       Status = EFI_DEVICE_ERROR;
       //
@@ -1069,7 +866,7 @@ NvmExpressPassThru (
     //
     // Reset the NVMe controller.
     //
-    Status = NvmeControllerInit (Private);
+    Status = NvmeControllerReset (Private); // MU_CHANGE - Allocate IO Queue Buffer
     if (!EFI_ERROR (Status)) {
       Status = AbortAsyncPassThruTasks (Private);
       if (!EFI_ERROR (Status)) {
@@ -1103,7 +900,7 @@ NvmExpressPassThru (
     }
   }
 
-  // MU_CHANGE [END]
+  // MU_CHANGE [END] - Support alternative hardware queue sizes in NVME driver
 
   Data           = ReadUnaligned32 ((UINT32 *)&Private->CqHdbl[QueueId]);
   PreviousStatus = Status;
@@ -1129,16 +926,6 @@ NvmExpressPassThru (
   }
 
 EXIT:
-  // MS_HYP_CHANGE BEGIN
-  if (TransferBouncePageList != NULL) {
-    NvmExpressReleaseBouncePages (Private, TransferBouncePageList);
-  }
-
-  if (MetadataBouncePageList != NULL) {
-    NvmExpressReleaseBouncePages (Private, MetadataBouncePageList);
-  }
-  // MS_HYP_CHANGE END
-
   if (MapData != NULL) {
     PciIo->Unmap (
              PciIo,
@@ -1161,11 +948,6 @@ EXIT:
   }
 
   if (Prp != NULL) {
-    // MS_HYP_CHANGE BEGIN
-    if (IsIsolated()) {
-      NvmExpressMakeAddressRangePrivate(&PrpListVisibilityContext, PrpListHost);
-    }
-    // MS_HYP_CHANGE END
     PciIo->FreeBuffer (PciIo, PrpListNo, PrpListHost);
   }
 

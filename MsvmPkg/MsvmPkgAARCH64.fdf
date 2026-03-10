@@ -203,6 +203,7 @@ INF MsvmPkg/AziHsmDxe/AziHsmDxe.inf
 INF MsvmPkg/EfiHvDxe/EfiHvDxe.inf
 INF MsvmPkg/EmclDxe/EmclDxe.inf
 INF MsvmPkg/EventLogDxe/EventLogDxe.inf
+INF MsvmPkg/IoMmuDxe/IoMmuDxe.inf
 INF MsvmPkg/MsvmPcAtRealTimeClockRuntimeDxe/PcatRealTimeClockRuntimeDxe.inf
 INF MsvmPkg/NetvscDxe/NetvscDxe.inf
 INF MsvmPkg/NvmExpressDxe/NvmExpressDxe.inf

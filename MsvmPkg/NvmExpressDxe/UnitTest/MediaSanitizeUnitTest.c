@@ -1,7 +1,7 @@
 /** @file -- MediaSanitizeUnitTest.c
   Placeholder/framework for developing a Media Sanitize unit test package.
 
-  Copyright (c) Microsoft Corporation.
+  Copyright (c) Microsoft Corporation.<BR>
   SPDX-License-Identifier: BSD-2-Clause-Patent
 
 **/
@@ -20,6 +20,15 @@
 #include "../NvmExpressMediaSanitize.h"
 #include "../NvmExpressHci.h"
 
+/**
+  Helper function for Nvme pass thru.
+
+  @param[in]     This        Private Data.
+  @param[in]     NamespaceId Name Space Id.
+  @param[in,out] Packet      Transfer Buffer.
+  @param[in]     Event       Event handle.
+
+ **/
 EFI_STATUS
 EFIAPI
 NvmeDeviceUnitTestPassthru (
@@ -50,7 +59,7 @@ NvmeDeviceUnitTestPassthru (
 
   switch (Command->Cdw0.Opcode) {
     case NVME_ADMIN_FORMAT_NVM_CMD:
-      UT_LOG_VERBOSE ("%a: Opcode = NVME_ADMIN_FORMAT_NVM_CMD\n", __FUNCTION__);
+      UT_LOG_VERBOSE ("%a: Opcode = NVME_ADMIN_FORMAT_NVM_CMD\n", __func__);
 
       CopyMem (&FormatNvmCdw10, &Command->Cdw10, sizeof (NVME_ADMIN_FORMAT_NVM));
 
@@ -76,7 +85,7 @@ NvmeDeviceUnitTestPassthru (
 
       break;
     case NVME_ADMIN_SANITIZE_CMD:
-      UT_LOG_VERBOSE ("%a: Opcode = NVME_ADMIN_SANITIZE_CMD\n", __FUNCTION__);
+      UT_LOG_VERBOSE ("%a: Opcode = NVME_ADMIN_SANITIZE_CMD\n", __func__);
 
       CopyMem (&SanitizeCdw1011, &Command->Cdw10, sizeof (NVME_ADMIN_SANITIZE));
 
@@ -104,7 +113,7 @@ NvmeDeviceUnitTestPassthru (
 
       break;
     default:
-      UT_LOG_VERBOSE ("%a: Invalid Opcode = 0x%x!!!\n", __FUNCTION__, Command->Cdw0.Opcode);
+      UT_LOG_VERBOSE ("%a: Invalid Opcode = 0x%x!!!\n", __func__, Command->Cdw0.Opcode);
       break;
   }
 
@@ -115,6 +124,14 @@ NvmeDeviceUnitTestPassthru (
   return EFI_SUCCESS;
 }
 
+/**
+  Helper function to simulate read.
+
+  @param[in]   Private     Private Data.
+  @param[in]   NamespaceId Name Space Id.
+  @param[in]   Buffer      Transfer Buffer.
+
+ **/
 EFI_STATUS
 NvmeIdentifyNamespace (
   IN NVME_CONTROLLER_PRIVATE_DATA  *Private,
@@ -148,6 +165,15 @@ NvmeIdentifyNamespace (
   return EFI_SUCCESS;
 }
 
+/**
+  Helper function to simulate read.
+
+  @param[in]   Device  Private Data.
+  @param[out]  Buffer  Buffer to read into.
+  @param[in]   Lba     Logical Block Addess to read from.
+  @param[in]   Blocks  Number of blocks.
+
+ **/
 EFI_STATUS
 NvmeUnitTestRead (
   IN     NVME_DEVICE_PRIVATE_DATA  *Device,
@@ -164,6 +190,15 @@ NvmeUnitTestRead (
   return EFI_SUCCESS;
 }
 
+/**
+  Helper function to simulate write.
+
+  @param[in]     Device  Private Data.
+  @param[in]     Buffer  Buffer to write.
+  @param[in]     Lba     Logical Block Addess to write.
+  @param[in]     Blocks  Number of blocks.
+
+ **/
 EFI_STATUS
 NvmeUnitTestWrite (
   IN NVME_DEVICE_PRIVATE_DATA  *Device,
@@ -180,6 +215,16 @@ NvmeUnitTestWrite (
   return EFI_SUCCESS;
 }
 
+/**
+  Simulated BlockIo read block function.
+
+  @param[in]     This        BlockIo Protocol.
+  @param[in]     MediaId     Id of the media.
+  @param[in]     Lba         Logical Block Address.
+  @param[in]     BufferSize  Size of Buffer.
+  @param[out]    Buffer      Actual buffer to use to read.
+
+ **/
 EFI_STATUS
 EFIAPI
 NvmeBlockIoReadBlocks (
@@ -239,6 +284,16 @@ NvmeBlockIoReadBlocks (
   return Status;
 }
 
+/**
+  Simulated BlockIo write block function.
+
+  @param[in]     This        BlockIo Protocol.
+  @param[in]     MediaId     Id of the media.
+  @param[in]     Lba         Logical Block Address.
+  @param[in]     BufferSize  Size of Buffer.
+  @param[in]     Buffer      Actual buffer to use to write.
+
+ **/
 EFI_STATUS
 EFIAPI
 NvmeBlockIoWriteBlocks (
@@ -298,6 +353,18 @@ NvmeBlockIoWriteBlocks (
   return Status;
 }
 
+/**
+  Simulated BlockIo read block ex function.
+
+  @param[in]     This        BlockIo2 Protocol.
+  @param[in]     MediaId     Id of the media.
+  @param[in]     Lba         Logical Block Address.
+  @param[in,out] Token       Block Io2 token.
+
+  @param[in]     BufferSize  Size of Buffer.
+  @param[out]    Buffer      Actual buffer to use to read.
+
+ **/
 EFI_STATUS
 EFIAPI
 NvmeBlockIoReadBlocksEx (
@@ -354,6 +421,18 @@ NvmeBlockIoReadBlocksEx (
   return Status;
 }
 
+/**
+  Simulated BlockIo write block ex function.
+
+  @param[in]     This        BlockIo2 Protocol.
+  @param[in]     MediaId     Id of the media.
+  @param[in]     Lba         Logical Block Address.
+  @param[in,out] Token       Block Io2 token.
+  @param[in]     BufferSize  Size of Buffer.
+
+  @param[in]     Buffer      Actual buffer to use to write.
+
+ **/
 EFI_STATUS
 EFIAPI
 NvmeBlockIoWriteBlocksEx (
@@ -410,6 +489,11 @@ NvmeBlockIoWriteBlocksEx (
   return Status;
 }
 
+/**
+  MediaSanitizePurgeUnitTest to initialize a Private Namespace instance.
+
+  @param[in]  ppDevice  Nvme Private Data structure to destory and free.
+ **/
 UNIT_TEST_STATUS
 EFIAPI
 NvmeDestroyDeviceInstance (
@@ -435,6 +519,11 @@ NvmeDestroyDeviceInstance (
   return UNIT_TEST_PASSED;
 }
 
+/**
+  MediaSanitizePurgeUnitTest to initialize a Private Namespace instance.
+
+  @param[in]  ppDevice  Nvme Private Data structure to initialize.
+ **/
 UNIT_TEST_STATUS
 EFIAPI
 NvmeCreateDeviceInstance (
@@ -464,8 +553,8 @@ NvmeCreateDeviceInstance (
 
   Private->ControllerData = (NVME_ADMIN_CONTROLLER_DATA *)AllocateZeroPool (sizeof (NVME_ADMIN_CONTROLLER_DATA));
 
-  UT_LOG_VERBOSE ("%a: Allocated and Initialized NVME_CONTROLLER_PRIVATE_DATA\n", __FUNCTION__);
-  UT_LOG_VERBOSE ("%a: Allocated and Initialized NVME_ADMIN_CONTROLLER_DATA\n", __FUNCTION__);
+  UT_LOG_VERBOSE ("%a: Allocated and Initialized NVME_CONTROLLER_PRIVATE_DATA\n", __func__);
+  UT_LOG_VERBOSE ("%a: Allocated and Initialized NVME_ADMIN_CONTROLLER_DATA\n", __func__);
 
   Private->ControllerData->Nn          = 1; // One namespace
   Private->ControllerData->Sanicap.Bes = 1; // Block Erase Supported
@@ -473,7 +562,7 @@ NvmeCreateDeviceInstance (
   Private->ControllerData->Sanicap.Ows = 1; // Overwrite Supported
 
   NamespaceData = AllocateZeroPool (sizeof (NVME_ADMIN_NAMESPACE_DATA));
-  UT_LOG_VERBOSE ("%a: Allocated and Initialized NVME_ADMIN_NAMESPACE_DATA\n", __FUNCTION__);
+  UT_LOG_VERBOSE ("%a: Allocated and Initialized NVME_ADMIN_NAMESPACE_DATA\n", __func__);
 
   Device = (NVME_DEVICE_PRIVATE_DATA *)(AllocateZeroPool (sizeof (NVME_DEVICE_PRIVATE_DATA)));
 
@@ -525,11 +614,16 @@ NvmeCreateDeviceInstance (
   CopyMem (&Device->NamespaceData, NamespaceData, sizeof (NVME_ADMIN_NAMESPACE_DATA));
   *ppDevice = Device;
 
-  UT_LOG_VERBOSE ("%a: Allocated and Initialized NVME_DEVICE_PRIVATE_DATA\n", __FUNCTION__);
+  UT_LOG_VERBOSE ("%a: Allocated and Initialized NVME_DEVICE_PRIVATE_DATA\n", __func__);
 
   return UNIT_TEST_PASSED;
 }
 
+/**
+  MediaSanitizePurgeUnitTest to Test calls to NvmExpressMediaPurge.
+
+  @param[in]  Context  Unit test case context
+ **/
 UNIT_TEST_STATUS
 EFIAPI
 MediaSanitizePurgeUnitTest (
@@ -538,19 +632,23 @@ MediaSanitizePurgeUnitTest (
 {
   UINT32                    PurgeAction;
   UINT32                    OverwritePattern;
-  UNIT_TEST_STATUS          UnitTestStatus = UNIT_TEST_PASSED;
-  NVME_DEVICE_PRIVATE_DATA  *NvmeDevice    = NULL;
-  EFI_STATUS                Status         = EFI_SUCCESS;
+  UNIT_TEST_STATUS          UnitTestStatus;
+  NVME_DEVICE_PRIVATE_DATA  *NvmeDevice;
+  EFI_STATUS                Status;
+
+  UnitTestStatus = UNIT_TEST_PASSED;
+  NvmeDevice     = NULL;
+  Status         = EFI_SUCCESS;
 
   UnitTestStatus = NvmeCreateDeviceInstance (&NvmeDevice);
 
   UT_ASSERT_STATUS_EQUAL (UnitTestStatus, UNIT_TEST_PASSED);
   UT_ASSERT_NOT_NULL (NvmeDevice);
 
-  UT_LOG_VERBOSE ("%a: Create Device Instance Status = 0x%x\n", __FUNCTION__, UnitTestStatus);
-  UT_LOG_VERBOSE ("%a: Device = 0x%x\n", __FUNCTION__, NvmeDevice);
-  UT_LOG_VERBOSE ("%a: Device->BlockIo = 0x%x\n", __FUNCTION__, NvmeDevice->BlockIo);
-  UT_LOG_VERBOSE ("%a: Device->Signature = 0x%x\n", __FUNCTION__, NvmeDevice->Signature);
+  UT_LOG_VERBOSE ("%a: Create Device Instance Status = 0x%x\n", __func__, UnitTestStatus);
+  UT_LOG_VERBOSE ("%a: Device = 0x%x\n", __func__, NvmeDevice);
+  UT_LOG_VERBOSE ("%a: Device->BlockIo = 0x%x\n", __func__, NvmeDevice->BlockIo);
+  UT_LOG_VERBOSE ("%a: Device->Signature = 0x%x\n", __func__, NvmeDevice->Signature);
 
   //
   // Case 1: Block Erase
@@ -572,20 +670,29 @@ MediaSanitizePurgeUnitTest (
   return UNIT_TEST_PASSED;
 }
 
+/**
+  NvmeSanitizeUnitTest to Test calls to NvmExpressSanitize.
+
+  @param[in]  Context  Unit test case context
+ **/
 UNIT_TEST_STATUS
 EFIAPI
 NvmeSanitizeUnitTest (
   IN UNIT_TEST_CONTEXT  Context
   )
 {
-  UINT32                    NamespaceId = 0;
+  UINT32                    NamespaceId;
   UINT32                    SanitizeAction;
   UINT32                    NoDeallocateAfterSanitize;
   UINT32                    OverwritePattern;
-  UNIT_TEST_STATUS          UnitTestStatus = UNIT_TEST_PASSED;
-  NVME_DEVICE_PRIVATE_DATA  *NvmeDevice    = NULL;
-  EFI_STATUS                Status         = EFI_SUCCESS;
+  UNIT_TEST_STATUS          UnitTestStatus;
+  NVME_DEVICE_PRIVATE_DATA  *NvmeDevice;
+  EFI_STATUS                Status;
 
+  NamespaceId               = 0;
+  UnitTestStatus            = UNIT_TEST_PASSED;
+  NvmeDevice                = NULL;
+  Status                    = EFI_SUCCESS;
   SanitizeAction            = SANITIZE_ACTION_BLOCK_ERASE;
   NoDeallocateAfterSanitize = 0;
   OverwritePattern          = 0;
@@ -595,10 +702,10 @@ NvmeSanitizeUnitTest (
   UT_ASSERT_STATUS_EQUAL (UnitTestStatus, UNIT_TEST_PASSED);
   UT_ASSERT_NOT_NULL (NvmeDevice);
 
-  UT_LOG_VERBOSE ("%a: Create Device Instance Status = 0x%x\n", __FUNCTION__, UnitTestStatus);
-  UT_LOG_VERBOSE ("%a: Device = 0x%x\n", __FUNCTION__, NvmeDevice);
-  UT_LOG_VERBOSE ("%a: Device->BlockIo = 0x%x\n", __FUNCTION__, NvmeDevice->BlockIo);
-  UT_LOG_VERBOSE ("%a: Device->Signature = 0x%x\n", __FUNCTION__, NvmeDevice->Signature);
+  UT_LOG_VERBOSE ("%a: Create Device Instance Status = 0x%x\n", __func__, UnitTestStatus);
+  UT_LOG_VERBOSE ("%a: Device = 0x%x\n", __func__, NvmeDevice);
+  UT_LOG_VERBOSE ("%a: Device->BlockIo = 0x%x\n", __func__, NvmeDevice->BlockIo);
+  UT_LOG_VERBOSE ("%a: Device->Signature = 0x%x\n", __func__, NvmeDevice->Signature);
 
   //
   // Case 1: Block Erase
@@ -690,28 +797,38 @@ NvmeSanitizeUnitTest (
   return UNIT_TEST_PASSED;
 }
 
+/**
+  NvmeFormatNvmUnitTest to Test calls to NvmExpressFormatNvm.
+
+  @param[in]  Context  Unit test case context
+ **/
 UNIT_TEST_STATUS
 EFIAPI
 NvmeFormatNvmUnitTest (
   IN UNIT_TEST_CONTEXT  Context
   )
 {
-  UINT32                    NamespaceId = 0;
+  UINT32                    NamespaceId;
   UINT32                    Ses;
   UINT32                    Flbas;
-  NVME_DEVICE_PRIVATE_DATA  *NvmeDevice    = NULL;
-  UNIT_TEST_STATUS          UnitTestStatus = UNIT_TEST_PASSED;
-  EFI_STATUS                Status         = EFI_SUCCESS;
+  NVME_DEVICE_PRIVATE_DATA  *NvmeDevice;
+  UNIT_TEST_STATUS          UnitTestStatus;
+  EFI_STATUS                Status;
+
+  NamespaceId    = 0;
+  NvmeDevice     = NULL;
+  UnitTestStatus = UNIT_TEST_PASSED;
+  Status         = EFI_SUCCESS;
 
   UnitTestStatus = NvmeCreateDeviceInstance (&NvmeDevice);
 
   UT_ASSERT_STATUS_EQUAL (UnitTestStatus, UNIT_TEST_PASSED);
   UT_ASSERT_NOT_NULL (NvmeDevice);
 
-  UT_LOG_VERBOSE ("%a: Create Device Instance Status = 0x%x\n", __FUNCTION__, UnitTestStatus);
-  UT_LOG_VERBOSE ("%a: Device = 0x%x\n", __FUNCTION__, NvmeDevice);
-  UT_LOG_VERBOSE ("%a: Device->BlockIo = 0x%x\n", __FUNCTION__, NvmeDevice->BlockIo);
-  UT_LOG_VERBOSE ("%a: Device->Signature = 0x%x\n", __FUNCTION__, NvmeDevice->Signature);
+  UT_LOG_VERBOSE ("%a: Create Device Instance Status = 0x%x\n", __func__, UnitTestStatus);
+  UT_LOG_VERBOSE ("%a: Device = 0x%x\n", __func__, NvmeDevice);
+  UT_LOG_VERBOSE ("%a: Device->BlockIo = 0x%x\n", __func__, NvmeDevice->BlockIo);
+  UT_LOG_VERBOSE ("%a: Device->Signature = 0x%x\n", __func__, NvmeDevice->Signature);
 
   //
   // Case 1: User Data Erase (Flbas = 0)
@@ -774,6 +891,11 @@ NvmeFormatNvmUnitTest (
   return UNIT_TEST_PASSED;
 }
 
+/**
+  Baseline Unit Test.
+
+  @param[in]  Context  Unit test case context
+ **/
 UNIT_TEST_STATUS
 EFIAPI
 UnitTestBaseline (
@@ -794,6 +916,15 @@ UnitTestBaseline (
   return UNIT_TEST_PASSED;
 }
 
+/**
+  Test Case that locks a variable using the Variable Policy Protocol with a
+  policy other than LOCK_NOW then attempts to lock the same variable using the
+  Variable Lock Protocol.  The call to Variable Policy is expected to succeed
+  and the call to Variable Lock is expected to fail.
+
+  @retval EFI_SUCCES  Success
+  @retval Other       Error
+  **/
 EFI_STATUS
 EFIAPI
 MediaSanitizeUnitTestEntry (
@@ -973,10 +1104,24 @@ EXIT:
   return Status;
 }
 
-int
-main (
-  int   argc,
-  char  *argv[]
+///
+/// Avoid ECC error for function name that starts with lower case letter
+///
+#define MediaSanitizeUnitTestMain  main
+
+/**
+  Standard POSIX C entry point for host based unit test execution.
+
+  @param[in] Argc  Number of arguments
+  @param[in] Argv  Array of pointers to arguments
+
+  @retval 0      Success
+  @retval other  Error
+**/
+INT32
+MediaSanitizeUnitTestMain (
+  IN INT32  Argc,
+  IN CHAR8  *Argv[]
   )
 {
   return MediaSanitizeUnitTestEntry ();

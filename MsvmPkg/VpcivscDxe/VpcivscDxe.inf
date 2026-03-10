@@ -19,6 +19,7 @@
 
 [Packages]
     MdePkg/MdePkg.dec
+    MdeModulePkg/MdeModulePkg.dec
     MsvmPkg/MsvmPkg.dec
 
 [LibraryClasses]
@@ -29,6 +30,7 @@
     DevicePathLib
     EmclLib
     IoLib
+    IoMmuLib
     IsolationLib
     MemoryAllocationLib
     MmioAllocationLib
@@ -49,4 +51,5 @@
     gMsvmPkgTokenSpaceGuid.PcdIsolationSharedGpaBoundary
     gMsvmPkgTokenSpaceGuid.PcdIsolationSharedGpaCanonicalizationBitmask
     gMsvmPkgTokenSpaceGuid.PcdVpciBootEnabled
+    gMsvmPkgTokenSpaceGuid.PcdVpciInstanceFilterGuidPtr
     gMsvmPkgTokenSpaceGuid.PcdVpciInstanceFilterGuidPtr

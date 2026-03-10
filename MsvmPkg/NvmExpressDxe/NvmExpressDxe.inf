@@ -10,8 +10,6 @@
 #
 ##
 
-#Override : 00000002 | MdeModulePkg/Bus/Pci/NvmExpressDxe/NvmExpressDxe.inf | 3d8988a2bf5b4c01fbf324929bbeb4ba | 2025-06-11T22-02-17 | 3568dd82badd2e9c331f43c30f119f6c6908497a
-
 [Defines]
   INF_VERSION                    = 0x00010005
   BASE_NAME                      = NvmExpressDxe
@@ -37,7 +35,6 @@
   ComponentName.c
   NvmExpress.c
   NvmExpress.h
-  NvmExpressBounce.c                ## MS_HYP_CHANGE
   NvmExpressDiskInfo.c
   NvmExpressDiskInfo.h
   NvmExpressHci.c
@@ -53,14 +50,12 @@
 [Packages]
   MdePkg/MdePkg.dec
   MdeModulePkg/MdeModulePkg.dec
-  MsvmPkg/MsvmPkg.dec               ## MS_HYP_CHANGE
 
 [LibraryClasses]
   BaseMemoryLib
   BaseLib
   DebugLib
   DevicePathLib
-  IsolationLib                      ## MS_HYP_CHANGE
   MemoryAllocationLib
   UefiDriverEntryPoint
   UefiBootServicesTableLib
@@ -81,16 +76,11 @@
   gEfiDriverSupportedEfiVersionProtocolGuid   ## PRODUCES
   gMediaSanitizeProtocolGuid                  ## PRODUCES
   gEfiResetNotificationProtocolGuid           ## CONSUMES
-  gEfiHvIvmProtocolGuid                       ## CONSUMES ## MS_HYP_CHANGE
-
 
 [Pcd]
   ## MU_CHANGE [BEGIN] - Support alternative hardware queue sizes in NVME driver
   gEfiMdeModulePkgTokenSpaceGuid.PcdSupportAlternativeQueueSize ## CONSUMES
-  ## MU_CHANGE [END]
-  gMsvmPkgTokenSpaceGuid.PcdIsolationSharedGpaBoundary                ## MS_HYP_CHANGE
-  gMsvmPkgTokenSpaceGuid.PcdIsolationSharedGpaCanonicalizationBitmask ## MS_HYP_CHANGE
-  gMsvmPkgTokenSpaceGuid.PcdNvmeNamespaceFilter                       ## MS_HYP_CHANGE
+  ## MU_CHANGE [END] - Support alternative hardware queue sizes in NVME driver
 
 # [Event]
 # EVENT_TYPE_RELATIVE_TIMER ## SOMETIMES_CONSUMES
